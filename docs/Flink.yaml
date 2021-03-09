@@ -1,0 +1,125 @@
+定义: Apache Flink是一个框架和分布式处理引擎,用于对无界和有界数据流进行状态计算.
+  特点:
+    <1>: 事件驱动(Event-driven)
+    <2>: 基于流的世界观(离线数据:有界流;实时数据:无界流)
+    <3>: 分层API
+    <4>: 支持事件时间(event-time)和处理时间(processing-time)语义
+    <5>: 精确一次(exactly-once)的状态一致性保证
+    <6>: 低延迟,每秒处理数百万个事件,毫秒级延迟
+    <7>: 与众多常用存储系统的连接
+    <8>: 高可用,动态扩展
+Flink部署:
+  Yarn模式:
+    Session Cluster:
+      <1>: 启动hadoop集群
+      <2>: 启动yarn-session
+        ./yarn-session.sh -n 2 -s 2 -jm 1024 -nm test -d
+        其中:
+          -n(--container): TaskManager的数量(已废弃)
+          -s(--slots): 每个TaskManager的slot数量,默认一个slot一个core,默认每个taskmanager的slot数量为1,有时可以多一些taskmanager,做冗余
+          -jm: JobManager的内存(单位:MB)
+          -tm: 每个taskmanager的内存(单位:MB)
+          -nm: yarn的appName(现在yarn的ui上的名字)
+          -d: 后台执行
+      <3>: 执行任务
+        ./flink run -c ${入口} ${.jar} --host host --port port
+      <4>: 去yarn控制台查看任务状态
+      <5>: 取消yarn-session
+        yarn application --kill ${applicationId}
+    Per Job Cluster:
+      <1>: 启动hadoop集群
+      <2>: 执行job
+        ./flink run -m yarn-cluster -c ${入口} ${.jar} --host host --port port
+  Kubernetes部署:
+    <1>: 搭建kubernetes集群
+    <2>: 配置各组件的yaml文件
+        在k8s上构建Flink Session Cluster,需要将Flink集群的组件对应的docker镜像分别在k8s上启动,包括JobManager、TaskManger、Job
+      ManagerService三个镜像服务.每个镜像服务都可以从中央镜像仓库获取.
+    <3>: 启动Flink Session Cluster
+      # 启动jobmanager-service服务
+      kubectl create -f jobmanager-service.yaml
+      # 启动jobmanager-deployment服务
+      kubectl create -f jobmanager-deployment.yaml
+      # 启动taskmanager-deployment服务
+      kubectl create -f taskmanager-deployment.yaml
+    <4>: 访问Flink UI界面
+      http://{jobManagerHost:Port}/api/v1/namespaces/default/services/flink-jobmanager:ui/proxy
+Flink运行时架构:
+  四大组件:
+    作业管理器[JobManager]: 控制一个应用程序执行的主进程,也就是说,每一个应用程序都会被一个不同的JobManager所控制执行
+    任务管理器[TaskManager]: Flink中的工作进程
+    资源管理器[ResourceManager]: 负责管理任务管理器(TaskManager)的插槽(slot)
+    分发器[Dispatcher]: 可以跨作业运行,它为应用提交提供了REST接口
+  作业提交流程: docs/任务提交流程.png
+  任务提交流程(yarn): docs/任务提交流程(yarn).png
+  任务调度原理: docs/任务调度原理.png
+  并行度: 一个特定算子的子任务(subtask)的个数被称之为并行度(parallelism)
+  TaskManager和Slots:
+    Flink中每个TaskManager都是一个JVM进程
+    默认情况下,Flink允许子任务共享slot,即使它们是不同任务的子任务.这样的结果是,一个slot可以保存作业的整个管道.
+  程序与数据流:
+    所有的Flinlk程序都是由三部分组成的:Source、TransFormation和Sink.Source负责读取数据源,Transformation负责计算,Sink负责输出
+  执行图(ExecutionGraph): StreamGraph->JobGraph->ExecutionGraph->物理执行图
+    <1>StreamGraph: 根据用户通过StreamAPI编写的代码生成的最初的图.用来表示程序的拓扑结构
+    <2>JobGraph: StreamGraph经过优化后生成了JobGraph,提交给JobManager的数据机构.主要的优化为,将多个符合条件的节点chain在一起作为一个节点.
+    <3>ExecutionGraph: JobManager根据JobGraph生成ExecutionGraph.ExecutionGraph是JobGraph的并行化版本,是调度层最核心的数据结构.
+    <4>物理执行图: JobManager根据ExecutionGraph对job进行调度后,在各个TaskManager上部署Task后形成的"图",并不是一个具体的数据结构
+  数据传输形式:
+    算子之间传输数据的形式可以是one-to-one(forwarding)的模式也可以是redistributing的模式
+    One-to-one: stream维护着分区以及元素的顺序(比如source和map之间).这意味着map算子的子任务看到的元素的个数以及顺序跟source算子的子任务生产的元素的个数、顺序相同.
+    Redistributing: stream的分区会发生改变.每一个算子的子任务依据所选择的transformation发送到数据不同的目标任务.
+  任务链: 要求并行度相同且为one-to-one
+window:
+  window类型:
+    时间窗口:
+      滚动时间窗口->param:length
+      滑动时间窗口->param:length,walk
+      会话窗口->param:timeout
+    计数窗口:
+      滚动计数窗口
+      滑动计数窗口
+  window function:
+    增量聚合函数: 每条数据到来就进行计算,ReduceFunction,AggregateFunction
+    全窗口函数: 先收集数据,最后遍历计算,ProcessWindowFunction,WindowFunction
+Flink状态:
+  算子状态(Operatior State): 算子状态的作用范围限定为算子任务
+    列表状态(List state): 将状态表示为一组数据的列表
+    联合列表状态(Union list state): 与常规列表状态的区别在于,在发生故障时,或者从保存点(savepoint)启动应用程序时如何恢复
+    广播状态(Broadcast state): 如果一个算子有多项任务,而它的每项任务状态又都相同,那么这种特殊情况最适合应用广播状态
+  键控状态(Keyed State): 根据输入流中定义的建(key)来维护和访问
+    值状态(Value state): 将状态表示为单个的值
+    列表状态(List state): 将状态表示为一组数据的列表
+    映射状态(Map state): 将状态表示为一组K-V对
+    聚合状态(Reducing state & Aggregating State): 将状态表示为一个用于聚合操作的列表
+  状态后端(State Backends):
+    MemoryStateBackend: 内存级的状态后端,会将键控状态作为内存中的对象进行管理,将它们存储在TaskManager的JVM堆上,而将checkpoint存储在JobManager的内存中.
+      特点: 快速、低延迟,但不稳定
+    FsStateBackend: 将checkpoint存到远程的持久化文件系统(FileSystem)上,而对于本地状态,跟MemoryStateBackend一样,也会存在TaskManager的JVM堆上
+      特点: 同时拥有内存级的本地访问速度,和更好的容错性
+    RocksDBStateBackend: 将所有状态序列化后,存入本地的RockDB中存储.
+ProcessFunction:
+  ProcessFunction:
+  KeyedProcessFunction:
+  CoProcessFunction:
+  ProcessJoinFunction:
+  BoradcastProcessFunction:
+  KeyedBoradcastProcessFunction:
+  ProcessWindowFunction:
+  ProcessAllWindowFunction:
+容错机制:
+  一致性检查点(checkpoint):
+    <1>: Flink故障恢复机制的核心,就是应用状态的一致性检查点.
+    <2>: 有状态流应用的一致检查点,其实就是所有任务的状态,在某个时间点的一份拷贝(一份快照);这个时间点,应该是所有任务都恰好处理完一个相同的输入数据的时候.
+  从检查点恢复状态:
+    <1>: 遇到故障后,第一步就是重启应用
+    <2>: 第二步是从checkpoint中读取状态,将状态重置;从检查点重新启动应用程序后,其内部状态与检查点完成时的状态完全相同
+    <3>: 第三步开始消费并处理检查点到故障发生之间的数据.
+  Flink检查点算法:
+    <1>: 分界线对齐:barrier向下游传递,任务会等待所有输入分区的barrier到达.
+    <2>: 对于barrier已经到达的分区,继续到达的数据会被缓存
+    <3>: 而barrier尚未到达的分区,数据会被正常处理
+  保存点(save points): Flink还提供了可以自定义的镜像保存功能,就是保存点
+    <1>: 原则上,创建保存点使用的算法与检查点完全相同,因此保存点可以认为就是具有一些额外元数据的检查点
+    <2>: Flink不会自动创建保存点,因此用户必须明确地触发创建操作
+状态一致性:
+  分类: AT-MOST-ONCE;AT-LEAST-ONCE;EXACTLY-ONCE
