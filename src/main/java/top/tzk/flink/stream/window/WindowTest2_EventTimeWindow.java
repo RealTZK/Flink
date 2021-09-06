@@ -23,7 +23,7 @@ public class WindowTest2_EventTimeWindow {
                 })
                 .assignTimestampsAndWatermarks(WatermarkStrategy
                         .<SensorReading>forBoundedOutOfOrderness(Duration.ofSeconds(1))
-                        .withTimestampAssigner((value, timestamp) -> value.getTimestamp())
+                        .withTimestampAssigner((value, timestamp) -> value.getTs())
                 );
 
         OutputTag<SensorReading> late= new OutputTag<>("late"){};

@@ -2,12 +2,12 @@ package top.tzk.flink.bean;
 
 public class SensorReading {
     private String id;
-    private Long timestamp;
+    private Long ts;
     private Double temperature;
 
-    public SensorReading(String id, Long timestamp, Double temperature) {
+    public SensorReading(String id, Long ts, Double temperature) {
         this.id = id;
-        this.timestamp = timestamp;
+        this.ts = ts;
         this.temperature = temperature;
     }
 
@@ -18,7 +18,7 @@ public class SensorReading {
     public String toString() {
         return "SensorReading{" +
                 "id='" + id + '\'' +
-                ", timestamp=" + timestamp +
+                ", timestamp=" + ts +
                 ", temperature=" + temperature +
                 '}';
     }
@@ -31,12 +31,12 @@ public class SensorReading {
         this.id = id;
     }
 
-    public Long getTimestamp() {
-        return timestamp;
+    public Long getTs() {
+        return ts;
     }
 
-    public void setTimestamp(Long timestamp) {
-        this.timestamp = timestamp;
+    public void setTs(Long ts) {
+        this.ts = ts;
     }
 
     public Double getTemperature() {

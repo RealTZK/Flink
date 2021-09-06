@@ -40,7 +40,7 @@ public class ProcessTest1_KeyedProcessFunction {
                         timerService.currentWatermark();
                         timerService.registerProcessingTimeTimer(timerService.currentProcessingTime() + 1000L);
                         timerState.update(timerService.currentProcessingTime() + 1000L);
-                        timerService.registerEventTimeTimer(value.getTimestamp() + 10);
+                        timerService.registerEventTimeTimer(value.getTs() + 10);
 //                        timerService.deleteProcessingTimeTimer(tsTimer.value());
                     }
 

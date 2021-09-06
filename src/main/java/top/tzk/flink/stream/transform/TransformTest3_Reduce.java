@@ -23,7 +23,7 @@ public class TransformTest3_Reduce {
         DataStream<SensorReading> reduce = keyedSensorReading.reduce((lastValue, curValue) ->
                 new SensorReading(
                         curValue.getId(),
-                        curValue.getTimestamp(),
+                        curValue.getTs(),
                         Math.max(curValue.getTemperature(), lastValue.getTemperature())));
 
         reduce.print();
