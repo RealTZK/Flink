@@ -10,5 +10,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>UserBehaviorAnalysis</artifactId>
+    <packaging>pom</packaging>
+    <modules>
+        <module>NetworkFlowAnalysis</module>
+        <module>MarketAnalysis</module>
+    </modules>
 
 </project>
